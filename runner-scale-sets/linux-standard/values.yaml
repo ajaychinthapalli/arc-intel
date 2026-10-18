@@ -1,0 +1,4 @@
+# Owned by: platform. Merged over _common/eks.yaml.
+minRunners: 0
+maxRunners: 20
+labels: {owner: platform, cost-center: cc-1042}

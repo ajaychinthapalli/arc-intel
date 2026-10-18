@@ -1,0 +1,12 @@
+# Read-only Argo CD token (account arc-intel: applications get only), from Secrets Manager arc/argocd-token.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: arc-intel-argocd-token
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: ClusterSecretStore, name: aws-secrets-manager}
+  target: {name: arc-intel-argocd-token, creationPolicy: Owner}
+  data:
+    - secretKey: token
+      remoteRef: {key: arc/argocd-token, property: token}

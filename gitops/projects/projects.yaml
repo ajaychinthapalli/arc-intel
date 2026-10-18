@@ -1,0 +1,49 @@
+# Two AppProjects separate who can deploy what:
+#  arc-platform: platform-owned controllers and tooling (cluster-scoped resources allowed)
+#  arc-runners:  team-owned runner scale sets, namespaced only, runner namespaces only
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: arc-platform
+  namespace: argocd
+spec:
+  description: ARC controller, Kagent, arc-intel, secrets and monitoring
+  sourceRepos:
+    - https://github.com/my-org/arc-intel.git
+    - ghcr.io/actions/actions-runner-controller-charts
+    - ghcr.io/kagent-dev/kagent/helm
+    - https://charts.external-secrets.io
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - {server: https://kubernetes.default.svc, namespace: "arc-systems"}
+    - {server: https://kubernetes.default.svc, namespace: "arc-intel"}
+    - {server: https://kubernetes.default.svc, namespace: "kagent"}
+    - {server: https://kubernetes.default.svc, namespace: "external-secrets"}
+    - {server: https://kubernetes.default.svc, namespace: "monitoring"}
+    - {server: https://kubernetes.default.svc, namespace: "arc-runners"}   # baseline: secret + egress policy
+  clusterResourceWhitelist:
+    - {group: "*", kind: "*"}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: arc-runners
+  namespace: argocd
+spec:
+  description: Runner scale sets. Namespaced resources in arc-runners* namespaces only.
+  sourceRepos:
+    - https://github.com/my-org/arc-intel.git
+    - ghcr.io/actions/actions-runner-controller-charts
+  destinations:
+    - {server: https://kubernetes.default.svc, namespace: "arc-runners*"}
+  clusterResourceWhitelist:
+    - {group: "", kind: Namespace}
+  namespaceResourceBlacklist:
+    - {group: "", kind: ResourceQuota}
+    - {group: "networking.k8s.io", kind: NetworkPolicy}   # platform owns egress policy
+  roles:
+    - name: runner-owners
+      description: Teams may sync their own scale sets; they cannot change projects or policy.
+      policies:
+        - p, proj:arc-runners:runner-owners, applications, get, arc-runners/*, allow
+        - p, proj:arc-runners:runner-owners, applications, sync, arc-runners/*, allow

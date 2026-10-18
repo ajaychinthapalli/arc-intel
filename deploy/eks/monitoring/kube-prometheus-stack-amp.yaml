@@ -1,0 +1,24 @@
+# kube-prometheus-stack values: keep alerting in-cluster, remote-write everything to
+# Amazon Managed Service for Prometheus (AMP) for fleet-wide dashboards in Amazon Managed Grafana.
+# Prometheus authenticates with SigV4 using its EKS Pod Identity role (see deploy/eks/cluster.yaml).
+prometheus:
+  serviceAccount:
+    create: true
+    name: kube-prometheus-stack-prometheus
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false   # pick up arc-intel's ServiceMonitor
+    ruleSelectorNilUsesHelmValues: false             # and its PrometheusRule
+    externalLabels:
+      cluster: arc-prod
+    remoteWrite:
+      - url: https://aps-workspaces.us-west-2.amazonaws.com/workspaces/ws-REPLACE/api/v1/remote_write
+        sigv4:
+          region: us-west-2
+        writeRelabelConfigs:
+          - sourceLabels: [__name__]
+            regex: "arc_intel_.*|kube_.*|up"
+            action: keep
+    nodeSelector: {workload: system}
+alertmanager:
+  alertmanagerSpec:
+    nodeSelector: {workload: system}

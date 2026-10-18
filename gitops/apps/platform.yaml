@@ -1,0 +1,196 @@
+# Platform applications, ordered by sync wave:
+#  -2 secrets operator  -1 runner baseline (secrets, egress), ARC controller, Kagent CRDs, monitoring  0 Kagent  1 arc-intel  2 agent
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://charts.external-secrets.io
+    chart: external-secrets
+    targetRevision: 0.x.x   # pin an exact version
+    helm:
+      valuesObject:
+        serviceAccount: {name: external-secrets}   # EKS Pod Identity association targets this name
+        nodeSelector: {workload: system}
+  destination: {server: https://kubernetes.default.svc, namespace: external-secrets}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-runner-baseline
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://github.com/my-org/arc-intel.git
+    targetRevision: main
+    path: deploy/eks/runner-baseline
+  destination: {server: https://kubernetes.default.svc, namespace: arc-runners}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    # ExternalSecret CRDs come from the external-secrets app in the previous wave.
+    syncOptions: [CreateNamespace=true, SkipDryRunOnMissingResource=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-controller
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set-controller
+    targetRevision: 0.13.0          # must match every scale set's chart version (ARC-015)
+    helm:
+      valuesObject:
+        serviceAccount: {name: arc-gha-rs-controller}
+        nodeSelector: {workload: system}
+        flags:
+          # Keep Argo CD's tracking labels off the listener/runner objects ARC creates,
+          # otherwise Argo treats them as its own and prunes or reports them.
+          excludeLabelPropagationPrefixes:
+            - argocd.argoproj.io/instance
+  destination: {server: https://kubernetes.default.svc, namespace: arc-systems}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 75.x.x   # pin an exact version
+      helm:
+        valueFiles: [$values/deploy/eks/monitoring/kube-prometheus-stack-amp.yaml]
+    - repoURL: https://github.com/my-org/arc-intel.git
+      targetRevision: main
+      ref: values
+  destination: {server: https://kubernetes.default.svc, namespace: monitoring}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kagent-crds
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+spec:
+  project: arc-platform
+  source:
+    repoURL: ghcr.io/kagent-dev/kagent/helm
+    chart: kagent-crds
+    targetRevision: 0.x.x   # pin an exact version
+  destination: {server: https://kubernetes.default.svc, namespace: kagent}
+  syncPolicy:
+    automated: {prune: false, selfHeal: true}   # never prune CRDs automatically
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kagent
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: ghcr.io/kagent-dev/kagent/helm
+    chart: kagent
+    targetRevision: 0.x.x   # pin the same version as kagent-crds
+  destination: {server: https://kubernetes.default.svc, namespace: kagent}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-intel
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://github.com/my-org/arc-intel.git
+    targetRevision: main
+    path: deploy/eks/mcp-server
+  destination: {server: https://kubernetes.default.svc, namespace: arc-intel}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, SkipDryRunOnMissingResource=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-compliance-agent
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://github.com/my-org/arc-intel.git
+    targetRevision: main
+    path: deploy/eks/kagent
+  destination: {server: https://kubernetes.default.svc, namespace: kagent}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-intel-monitoring
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://github.com/my-org/arc-intel.git
+    targetRevision: main
+    path: deploy/monitoring          # ServiceMonitor + PrometheusRule (5 alerts)
+  destination: {server: https://kubernetes.default.svc, namespace: arc-intel}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [SkipDryRunOnMissingResource=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-intel-digest
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "3"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://github.com/my-org/arc-intel.git
+    targetRevision: main
+    path: deploy/digest              # weekday CronJob: asks the agent over A2A, posts to Slack
+  destination: {server: https://kubernetes.default.svc, namespace: kagent}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

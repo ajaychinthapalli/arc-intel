@@ -1,0 +1,14 @@
+# Claude on Amazon Bedrock, authenticated by the agent pod's IRSA role (no keys in the cluster).
+# Set `model` to a Claude inference profile enabled in your account:
+#   aws bedrock list-inference-profiles --region <region> --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId"
+# setup-eks.sh patches model and region from BEDROCK_MODEL_ID / AWS_REGION.
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: arc-intel-bedrock
+  namespace: kagent
+spec:
+  provider: Bedrock
+  model: REPLACE_WITH_CLAUDE_INFERENCE_PROFILE_ID
+  bedrock:
+    region: us-west-2

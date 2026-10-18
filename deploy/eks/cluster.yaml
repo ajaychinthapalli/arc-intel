@@ -1,0 +1,109 @@
+# eksctl ClusterConfig for ARC + Kagent + arc-intel.
+# Rendered by demo/scripts/setup-eks.sh with envsubst:
+#   CLUSTER_NAME, AWS_REGION, AWS_ACCOUNT_ID
+# Pick a Kubernetes version currently in EKS standard support.
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: ${CLUSTER_NAME}
+  region: ${AWS_REGION}
+  version: "1.35"
+  tags:
+    app: arc-intel
+    owner: platform
+
+# Access entries only (no aws-auth ConfigMap): cluster access is an auditable IAM decision.
+accessConfig:
+  authenticationMode: API
+
+iam:
+  withOIDC: true            # IRSA, used by the Kagent agent pod for Bedrock (documented by Kagent)
+
+  # IRSA: the agent pod calls Amazon Bedrock with its own role, no API keys in the cluster.
+  serviceAccounts:
+    - metadata:
+        name: arc-compliance-agent
+        namespace: kagent
+      roleName: ${CLUSTER_NAME}-arc-agent-bedrock
+      attachPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+            Resource:
+              - arn:aws:bedrock:*::foundation-model/anthropic.*
+              - arn:aws:bedrock:*:${AWS_ACCOUNT_ID}:inference-profile/*
+
+  # EKS Pod Identity for everything else.
+  podIdentityAssociations:
+    # arc-intel: read the EKS audit log to resolve who changed a scale set.
+    - namespace: arc-intel
+      serviceAccountName: arc-intel
+      roleName: ${CLUSTER_NAME}-arc-intel-audit
+      permissionPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: ["logs:StartQuery"]
+            Resource: arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/eks/${CLUSTER_NAME}/cluster:*
+          - Effect: Allow
+            Action: ["logs:GetQueryResults", "logs:StopQuery"]
+            Resource: "*"
+    # External Secrets Operator: GitHub App credentials from AWS Secrets Manager.
+    - namespace: external-secrets
+      serviceAccountName: external-secrets
+      roleName: ${CLUSTER_NAME}-eso-arc
+      permissionPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+            Resource: arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc/*
+    # Argo CD repo-server: pull Helm charts from private ECR OCI repos (optional).
+    - namespace: argocd
+      serviceAccountName: argocd-repo-server
+      roleName: ${CLUSTER_NAME}-argocd-ecr
+      permissionPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+    # Prometheus: remote-write to Amazon Managed Service for Prometheus.
+    - namespace: monitoring
+      serviceAccountName: kube-prometheus-stack-prometheus
+      roleName: ${CLUSTER_NAME}-prometheus-amp
+      permissionPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess
+
+addons:
+  - name: vpc-cni
+    configurationValues: '{"enableNetworkPolicy": "true"}'   # enforces the NetworkPolicies (ARC-014, MCP isolation)
+  - name: coredns
+  - name: kube-proxy
+  - name: eks-pod-identity-agent
+
+managedNodeGroups:
+  # Platform workloads: ARC controller, Kagent, arc-intel, monitoring.
+  - name: system
+    instanceType: m7i.large
+    minSize: 2
+    maxSize: 4
+    desiredCapacity: 2
+    privateNetworking: true
+    labels: {workload: system}
+  # Untrusted CI jobs run only here (taint + selector), isolated from platform pods.
+  - name: arc-runners
+    instanceType: m7i.2xlarge
+    minSize: 0
+    maxSize: 20
+    desiredCapacity: 1
+    privateNetworking: true
+    labels: {workload: arc-runners}
+    taints:
+      - key: workload
+        value: arc-runners
+        effect: NoSchedule
+
+# Audit log = who did what (IAM identity), read by arc_audit_trail and drift attribution.
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["audit", "api", "authenticator"]
+    logRetentionInDays: 90

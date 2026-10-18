@@ -1,0 +1,17 @@
+# Runner namespace egress policy (ARC-014). Tighten the allow-all rule to GitHub, ECR and
+# your package registries; VPC CNI enforces it (enableNetworkPolicy in deploy/eks/cluster.yaml).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-runners
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: runners-egress
+  namespace: arc-runners
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}

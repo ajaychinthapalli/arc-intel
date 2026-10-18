@@ -1,0 +1,15 @@
+# Create the key first:
+#   kubectl -n kagent create secret generic kagent-anthropic \
+#     --from-literal=ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+# Any kagent provider works (OpenAI, AzureOpenAI, Gemini, Ollama...); swap provider/model/secret.
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: arc-intel-model
+  namespace: kagent
+spec:
+  provider: Anthropic
+  model: claude-sonnet-5-5
+  apiKeySecret: kagent-anthropic
+  apiKeySecretKey: ANTHROPIC_API_KEY
+  anthropic: {}

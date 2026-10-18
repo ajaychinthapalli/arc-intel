@@ -1,0 +1,67 @@
+# ARC, adopted from the existing Helm releases. Same chart version, same release names, same values,
+# so Argo CD takes ownership without recreating anything.
+#
+# Safety while adopting:
+#  - No `automated` sync yet: review `argocd app diff` and sync by hand once. Turn on automated
+#    sync + self-heal afterwards with a PR (see clusters/README.md, phase 6).
+#  - No resources-finalizer: deleting an Application leaves the controller and runners running.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-controller
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+spec:
+  project: arc-platform
+  sources:
+    - repoURL: ghcr.io/actions/actions-runner-controller-charts
+      chart: gha-runner-scale-set-controller
+      targetRevision: "__ARC_VERSION__"     # must equal every scale set's chart version (ARC-015)
+      helm:
+        releaseName: __ARC_CONTROLLER_RELEASE__
+        valueFiles: [$values/clusters/__CLUSTER__/values/arc-controller.yaml]
+    - repoURL: __REPO_URL__
+      targetRevision: __REPO_REVISION__
+      ref: values
+  destination: {server: https://kubernetes.default.svc, namespace: __ARC_CONTROLLER_NAMESPACE__}
+  syncPolicy:
+    syncOptions: [ServerSideApply=true]
+---
+# One Application per clusters/__CLUSTER__/runner-scale-sets/<release-name>/values.yaml.
+# Adding a runner pool = a PR adding a folder. The folder name is the Helm release name and the
+# `runs-on:` label, so adopted pools keep their current names.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: arc-runner-scale-sets
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  generators:
+    - git:
+        repoURL: __REPO_URL__
+        revision: __REPO_REVISION__
+        directories:
+          - path: clusters/__CLUSTER__/runner-scale-sets/*
+  template:
+    metadata:
+      name: "arc-runners-{{.path.basename}}"
+    spec:
+      project: arc-runners
+      sources:
+        - repoURL: ghcr.io/actions/actions-runner-controller-charts
+          chart: gha-runner-scale-set
+          targetRevision: "__ARC_VERSION__"
+          helm:
+            releaseName: "{{.path.basename}}"
+            valueFiles: ["$values/{{.path.path}}/values.yaml"]
+        - repoURL: __REPO_URL__
+          targetRevision: __REPO_REVISION__
+          ref: values
+      destination: {server: https://kubernetes.default.svc, namespace: __RUNNER_NAMESPACE__}
+      syncPolicy:
+        syncOptions: [ServerSideApply=true]

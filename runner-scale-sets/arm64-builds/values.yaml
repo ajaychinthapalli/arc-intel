@@ -1,0 +1,19 @@
+# Owned by: mobile. Graviton runners; needs an arm64 node group labelled workload=arc-runners.
+minRunners: 0
+maxRunners: 10
+labels: {owner: mobile, cost-center: cc-3310}
+template:
+  spec:
+    nodeSelector:
+      workload: arc-runners
+      kubernetes.io/arch: arm64
+    tolerations:
+      - {key: workload, operator: Equal, value: arc-runners, effect: NoSchedule}
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.328.0
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests: {cpu: "1", memory: 2Gi}
+          limits: {cpu: "2", memory: 4Gi}
+        securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001}

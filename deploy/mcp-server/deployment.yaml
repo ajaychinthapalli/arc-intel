@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arc-intel-mcp
+  namespace: arc-intel
+  labels: {app.kubernetes.io/name: arc-intel-mcp, app.kubernetes.io/part-of: arc-intel}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: arc-intel-mcp}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: arc-intel-mcp, app.kubernetes.io/part-of: arc-intel}
+    spec:
+      serviceAccountName: arc-intel
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: mcp
+          image: ghcr.io/my-org/arc-intel-mcp:0.1.0   # build from mcp-server/Dockerfile
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: mcp, containerPort: 8080}
+            - {name: metrics, containerPort: 9090}
+          env:
+            - {name: ARC_INTEL_POLICY, value: /etc/arc-intel/policy.yaml}
+            - {name: SCAN_INTERVAL_SECONDS, value: "300"}
+            # Set to "true" to let the agent record approved baselines (writes only the arc-intel-baselines ConfigMap).
+            - {name: ALLOW_BASELINE_WRITE, value: "false"}
+            - name: POD_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            # Argo CD API (rendered target state). Token: read-only local account, see gitops/argocd/.
+            - {name: ARGOCD_SERVER_URL, value: "https://argocd-server.argocd.svc.cluster.local"}
+            - {name: ARGOCD_TOKEN_FILE, value: /var/run/argocd/token}
+            - {name: ARGOCD_NAMESPACE, value: argocd}
+          readinessProbe:
+            httpGet: {path: /healthz, port: mcp}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: mcp}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: policy, mountPath: /etc/arc-intel, readOnly: true}
+            - {name: argocd-token, mountPath: /var/run/argocd, readOnly: true}
+      volumes:
+        - name: policy
+          configMap: {name: arc-intel-policy}
+        - name: argocd-token
+          secret:
+            secretName: arc-intel-argocd-token   # key: token; optional so non-Argo clusters still start
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-intel-mcp
+  namespace: arc-intel
+  labels: {app.kubernetes.io/name: arc-intel-mcp}
+spec:
+  selector: {app.kubernetes.io/name: arc-intel-mcp}
+  ports:
+    - {name: mcp, port: 8080, targetPort: mcp}
+    - {name: metrics, port: 9090, targetPort: metrics}
+---
+# Only Kagent (agent pods + controller) and Prometheus may reach the server.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: arc-intel-mcp
+  namespace: arc-intel
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: arc-intel-mcp}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kagent}
+      ports: [{port: 8080}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+      ports: [{port: 9090}]

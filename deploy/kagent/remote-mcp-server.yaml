@@ -1,0 +1,10 @@
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: arc-intel-mcp
+  namespace: kagent
+spec:
+  description: ARC configuration compliance, drift detection, change attribution and advisory remediation.
+  protocol: STREAMABLE_HTTP
+  url: http://arc-intel-mcp.arc-intel.svc.cluster.local:8080/mcp
+  timeout: 60s

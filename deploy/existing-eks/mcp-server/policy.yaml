@@ -1,0 +1,64 @@
+# ARC Compliance & Drift Intelligence — policy pack (existing EKS cluster)
+# setup-existing-eks.sh replaces GITHUB_CONFIG_URL with your scale set's githubConfigUrl.
+#
+# `settings` are the organisation-wide defaults every rule reads from.
+# `overrides` adjust settings for matching scale sets (first match wins per key,
+# later overrides take precedence over earlier ones).
+# `rules` lets you disable a rule or change its severity without code changes.
+
+version: 1
+
+settings:
+  # Only scale sets registered against these GitHub URLs are allowed.
+  allowedGithubConfigUrlPrefixes:
+    - GITHUB_CONFIG_URL
+  # Every container image (runner, init, sidecars) must come from these registries.
+  allowedRegistries:
+    - ghcr.io/actions/
+  # Upper bound on spec.maxRunners for any single scale set (cost / blast radius).
+  maxRunnersCeiling: 50
+  # Warm runners cost money while idle; keep the floor small.
+  maxMinRunners: 5
+  # Oldest actions/runner version you accept (GitHub stops accepting very old runners).
+  minRunnerVersion: "2.320.0"
+  # GitHub App auth is required; PATs are long-lived and tied to a person.
+  requireGithubApp: true
+  # Docker-in-Docker needs a privileged sidecar. Off by default; enable per namespace.
+  allowDind: false
+  # Org/enterprise scale sets must be placed in an explicit runner group.
+  forbidDefaultRunnerGroup: true
+  # Labels every AutoscalingRunnerSet must carry.
+  requiredLabels:
+    - owner
+    - cost-center
+  # Runner namespaces must have at least one NetworkPolicy.
+  requireNetworkPolicy: true
+  # Field managers considered "expected" when attributing drift. Anything else
+  # (kubectl-edit, kubectl-patch, Lens, ...) is reported as a manual change.
+  expectedManagers:
+    - helm
+    - argocd-controller
+    - argocd-application-controller
+    - helm-controller
+    - kustomize-controller
+    - manager           # the ARC controller itself
+    - arc-intel
+  # EKS audit log: Kubernetes usernames allowed to write scale sets. Any other writer is an
+  # out-of-band change, even when Argo CD self-heal has already reverted it.
+  expectedWriterIdentities:
+    - system:serviceaccount:argocd:argocd-application-controller
+    - system:serviceaccount:arc-systems:*
+
+overrides:
+  # Example: the docker-build team is allowed DinD and a bigger ceiling.
+  - match:
+      namespace: arc-runners-docker*
+    settings:
+      allowDind: true
+      maxRunnersCeiling: 100
+
+rules:
+  # Disable or re-grade any rule here, e.g.
+  # ARC-012: { enabled: false }
+  # ARC-013: { severity: medium }
+  {}

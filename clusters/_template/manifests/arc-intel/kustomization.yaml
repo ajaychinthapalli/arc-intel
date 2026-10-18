@@ -1,0 +1,32 @@
+# arc-intel on __CLUSTER__: ECR image, EKS audit-log attribution, Argo CD as source of truth.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: arc-intel
+resources:
+  - ../../../../deploy/mcp-server
+  - argocd-token.yaml
+images:
+  - name: ghcr.io/my-org/arc-intel-mcp
+    newName: __IMAGE_REPO__
+    newTag: "__IMAGE_TAG__"
+configMapGenerator:
+  - name: arc-intel-policy
+    behavior: replace
+    files: [policy.yaml]
+patches:
+  - target: {kind: Deployment, name: arc-intel-mcp}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: AWS_REGION, value: __REGION__}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: EKS_AUDIT_LOG_GROUP, value: /aws/eks/__CLUSTER__/cluster}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: AUDIT_LOOKBACK_HOURS, value: "168"}
+      # argocd-server serves a self-signed certificate by default. For production, give it a
+      # certificate from your CA, mount the CA bundle, and remove this.
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: ARGOCD_INSECURE, value: "true"}

@@ -1,0 +1,25 @@
+# EKS overlay for the Kagent resources: Bedrock instead of the Anthropic API key,
+# and the agent pod runs as the IRSA service account created by eksctl.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../kagent
+  - model-config-bedrock.yaml
+patches:
+  # Drop the API-key ModelConfig from the base.
+  - patch: |-
+      $patch: delete
+      apiVersion: kagent.dev/v1alpha2
+      kind: ModelConfig
+      metadata:
+        name: arc-intel-model
+        namespace: kagent
+  - target: {kind: Agent, name: arc-compliance-agent}
+    patch: |-
+      - op: replace
+        path: /spec/declarative/modelConfig
+        value: arc-intel-bedrock
+      - op: add
+        path: /spec/declarative/deployment
+        value:
+          serviceAccountName: arc-compliance-agent

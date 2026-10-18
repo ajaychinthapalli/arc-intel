@@ -1,0 +1,53 @@
+# Requires the Prometheus Operator CRDs (kube-prometheus-stack).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arc-intel-mcp
+  namespace: arc-intel
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: arc-intel-mcp}
+  endpoints:
+    - port: metrics
+      interval: 60s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: arc-intel
+  namespace: arc-intel
+spec:
+  groups:
+    - name: arc-intel
+      rules:
+        - alert: ArcDriftIntroducedViolation
+          expr: arc_intel_posture{posture="drift_introduced_violation"} == 1
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: "ARC scale set {{ $labels.namespace }}/{{ $labels.name }}: a live change introduced a policy violation"
+            description: "Ask the arc-compliance-agent: 'Investigate drift on {{ $labels.namespace }}/{{ $labels.name }}'."
+        - alert: ArcCriticalViolation
+          expr: sum by (namespace, name, rule) (arc_intel_violations{severity="critical"}) > 0
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: "ARC scale set {{ $labels.namespace }}/{{ $labels.name }} violates {{ $labels.rule }}"
+        - alert: ArcManualDrift
+          expr: arc_intel_manual_changes > 0
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: "{{ $value }} field(s) on {{ $labels.namespace }}/{{ $labels.name }} changed outside Helm/GitOps"
+        - alert: ArcComplianceScoreLow
+          expr: arc_intel_compliance_score < 60
+          for: 1h
+          labels: {severity: info}
+          annotations:
+            summary: "ARC scale set {{ $labels.namespace }}/{{ $labels.name }} compliance score is {{ $value }}"
+        - alert: ArcIntelScanStale
+          expr: time() - arc_intel_last_scan_timestamp_seconds > 1800
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "arc-intel has not completed a scan in 30 minutes"

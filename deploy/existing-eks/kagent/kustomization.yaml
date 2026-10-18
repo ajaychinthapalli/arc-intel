@@ -1,0 +1,25 @@
+# Agent on an existing Kagent install: reuses the cluster's working Bedrock ModelConfig
+# (`bedrock-native`) instead of creating a new model config.
+# The agent runs as ServiceAccount AGENT_SERVICE_ACCOUNT, which setup-existing-eks.sh chooses so
+# the pod gets the same Bedrock credentials as your existing agents.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../kagent
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: kagent.dev/v1alpha2
+      kind: ModelConfig
+      metadata:
+        name: arc-intel-model
+        namespace: kagent
+  - target: {kind: Agent, name: arc-compliance-agent}
+    patch: |-
+      - op: replace
+        path: /spec/declarative/modelConfig
+        value: MODEL_CONFIG_NAME
+      - op: add
+        path: /spec/declarative/deployment
+        value:
+          serviceAccountName: AGENT_SERVICE_ACCOUNT

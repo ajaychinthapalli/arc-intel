@@ -1,0 +1,24 @@
+# Applied to every scale set before its own values (see gitops/apps/runner-scale-sets.yaml).
+githubConfigUrl: https://github.com/my-org
+githubConfigSecret: arc-github-app          # synced from AWS Secrets Manager (ARC-001)
+runnerGroup: platform
+controllerServiceAccount:
+  namespace: arc-systems
+  name: arc-gha-rs-controller
+template:
+  spec:
+    nodeSelector:
+      workload: arc-runners
+    tolerations:
+      - {key: workload, operator: Equal, value: arc-runners, effect: NoSchedule}
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.328.0   # pin a digest too
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests: {cpu: "1", memory: 2Gi}
+          limits: {cpu: "2", memory: 4Gi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
