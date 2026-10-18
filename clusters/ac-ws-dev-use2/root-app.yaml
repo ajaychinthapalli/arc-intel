@@ -1,0 +1,18 @@
+# App of apps for cluster ac-ws-dev-use2. The only manifest applied by hand:
+#   kubectl apply -f clusters/ac-ws-dev-use2/root-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ac-ws-dev-use2-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ajaychinthapalli/arc-intel.git
+    targetRevision: main
+    path: clusters/ac-ws-dev-use2/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

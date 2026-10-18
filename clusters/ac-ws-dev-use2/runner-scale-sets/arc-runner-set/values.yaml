@@ -1,0 +1,30 @@
+# Values of Helm release 'arc-runner-set' exported from the cluster (helm get values).
+# Change runner pools through PRs to this file; Argo CD applies them.
+githubConfigSecret: arc-github-app
+githubConfigUrl: https://github.com/ajaychinthapalli/arc-runners-sandbox
+maxRunners: 3
+minRunners: 0
+template:
+  metadata:
+    annotations:
+      karpenter.sh/do-not-disrupt: "true"
+  spec:
+    containers:
+      - command:
+          - /home/runner/run.sh
+        image: ghcr.io/actions/actions-runner:latest
+        name: runner
+        resources:
+          limits:
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+    nodeSelector:
+      capacity: ondemand
+      workload: ci-runner
+    terminationGracePeriodSeconds: 60
+    tolerations:
+      - effect: NoSchedule
+        key: workload
+        value: ci-runner

@@ -1,0 +1,23 @@
+# arc-compliance-agent on ac-ws-dev-use2's existing Kagent: reuses ModelConfig bedrock-native and runs as
+# ServiceAccount arc-readiness-agent, which has the same Bedrock access as your existing agents.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../deploy/kagent
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: kagent.dev/v1alpha2
+      kind: ModelConfig
+      metadata:
+        name: arc-intel-model
+        namespace: kagent
+  - target: {kind: Agent, name: arc-compliance-agent}
+    patch: |-
+      - op: replace
+        path: /spec/declarative/modelConfig
+        value: bedrock-native
+      - op: add
+        path: /spec/declarative/deployment
+        value:
+          serviceAccountName: arc-readiness-agent
