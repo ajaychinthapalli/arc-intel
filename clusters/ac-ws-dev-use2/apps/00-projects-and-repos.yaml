@@ -1,0 +1,52 @@
+# AppProjects and chart repositories for cluster ac-ws-dev-use2.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: arc-platform
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-10"}
+spec:
+  description: ARC controller, arc-intel, agent, secrets and monitoring (platform team)
+  sourceRepos:
+    - https://github.com/ajaychinthapalli/arc-intel.git
+    - ghcr.io/actions/actions-runner-controller-charts
+    - https://charts.external-secrets.io
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - {server: https://kubernetes.default.svc, namespace: arc-systems}
+    - {server: https://kubernetes.default.svc, namespace: arc-runners}
+    - {server: https://kubernetes.default.svc, namespace: arc-intel}
+    - {server: https://kubernetes.default.svc, namespace: kagent}
+    - {server: https://kubernetes.default.svc, namespace: external-secrets}
+    - {server: https://kubernetes.default.svc, namespace: monitoring}
+  clusterResourceWhitelist:
+    - {group: "*", kind: "*"}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: arc-runners
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-10"}
+spec:
+  description: Runner scale sets. Namespaced resources in arc-runners* only.
+  sourceRepos:
+    - https://github.com/ajaychinthapalli/arc-intel.git
+    - ghcr.io/actions/actions-runner-controller-charts
+  destinations:
+    - {server: https://kubernetes.default.svc, namespace: "arc-runners*"}
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+    - {group: "networking.k8s.io", kind: NetworkPolicy}   # platform owns egress policy
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-arc-charts
+  namespace: argocd
+  labels: {argocd.argoproj.io/secret-type: repository}
+stringData:
+  type: helm
+  name: arc-charts
+  url: ghcr.io/actions/actions-runner-controller-charts
+  enableOCI: "true"

@@ -1,0 +1,42 @@
+# Prometheus + Alertmanager + Grafana (diagram layer 1). Runs alongside the existing
+# amazon-cloudwatch-observability add-on; they don't conflict.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "92.10.1"
+      helm:
+        valueFiles: [$values/clusters/ac-ws-dev-use2/values/kube-prometheus-stack.yaml]
+    - repoURL: https://github.com/ajaychinthapalli/arc-intel.git
+      targetRevision: main
+      ref: values
+  destination: {server: https://kubernetes.default.svc, namespace: monitoring}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]   # its CRDs exceed client-side apply limits
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-intel-monitoring
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: https://github.com/ajaychinthapalli/arc-intel.git
+    targetRevision: main
+    path: deploy/monitoring          # ServiceMonitor + 5 PrometheusRule alerts
+  destination: {server: https://kubernetes.default.svc, namespace: arc-intel}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [SkipDryRunOnMissingResource=true]
