@@ -1,0 +1,24 @@
+# arc-compliance-agent on __CLUSTER__'s existing Kagent: reuses ModelConfig __MODEL_CONFIG__ and runs as
+# ServiceAccount __AGENT_SA__, which has the same Bedrock access as your existing agents.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../deploy/kagent
+__AGENT_SA_RESOURCE__
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: kagent.dev/v1alpha2
+      kind: ModelConfig
+      metadata:
+        name: arc-intel-model
+        namespace: kagent
+  - target: {kind: Agent, name: arc-compliance-agent}
+    patch: |-
+      - op: replace
+        path: /spec/declarative/modelConfig
+        value: __MODEL_CONFIG__
+      - op: add
+        path: /spec/declarative/deployment
+        value:
+          serviceAccountName: __AGENT_SA__

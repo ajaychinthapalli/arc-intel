@@ -1,0 +1,38 @@
+# Weekday 08:00 UTC digest. Optional Slack webhook:
+#   kubectl -n kagent create secret generic arc-intel-slack --from-literal=url=https://hooks.slack.com/services/...
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arc-intel-digest
+  namespace: kagent
+spec:
+  schedule: "0 8 * * 1-5"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: digest
+              image: python:3.12-slim
+              command: ["python", "/app/digest.py"]
+              env:
+                - {name: A2A_URL, value: "http://kagent-controller.kagent:8083/api/a2a/kagent/arc-compliance-agent/"}
+                - name: DIGEST_PROMPT
+                  value: >-
+                    Produce the daily ARC compliance digest: fleet grade and score, posture counts,
+                    any drift_introduced_violation scale sets first with who/when, top 5 risks by rule,
+                    controller version skew, and the three highest-value actions with owners. Max 25 lines.
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom: {secretKeyRef: {name: arc-intel-slack, key: url, optional: true}}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {cpu: 200m, memory: 128Mi}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+              volumeMounts: [{name: app, mountPath: /app}]
+          volumes:
+            - name: app
+              configMap: {name: arc-intel-digest}

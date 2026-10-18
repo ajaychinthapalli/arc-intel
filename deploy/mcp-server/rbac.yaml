@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arc-intel
+  namespace: arc-intel
+---
+# Read-only view of ARC resources and the context needed to evaluate them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: arc-intel-reader
+rules:
+  - apiGroups: ["actions.github.com"]
+    resources: ["autoscalingrunnersets", "ephemeralrunnersets", "ephemeralrunners", "autoscalinglisteners"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["list"]
+  # Argo CD Application status: sync, health, self-heal, last operation, source repo/path.
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list"]
+  # Needed for (a) GitHub config secret *key names* (App vs PAT) and (b) Helm release
+  # secrets to recover desired state. Secret values are never returned by any tool.
+  # To tighten: replace this ClusterRole rule with per-namespace Roles using resourceNames.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: arc-intel-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: arc-intel-reader
+subjects:
+  - kind: ServiceAccount
+    name: arc-intel
+    namespace: arc-intel
+---
+# The only write permission: the baseline ConfigMap in arc-intel's own namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: arc-intel-baselines
+  namespace: arc-intel
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["arc-intel-baselines"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arc-intel-baselines
+  namespace: arc-intel
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: arc-intel-baselines
+subjects:
+  - kind: ServiceAccount
+    name: arc-intel
+    namespace: arc-intel

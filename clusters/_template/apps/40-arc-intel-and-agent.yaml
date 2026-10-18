@@ -1,0 +1,53 @@
+# arc-intel (diagram layer 3), the Kagent agent (layer 2) and the daily digest (layer 1).
+# Kagent itself stays Helm-managed; these apps only add resources to it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-intel
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: __REPO_URL__
+    targetRevision: __REPO_REVISION__
+    path: clusters/__CLUSTER__/manifests/arc-intel
+  destination: {server: https://kubernetes.default.svc, namespace: arc-intel}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, SkipDryRunOnMissingResource=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-compliance-agent
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: __REPO_URL__
+    targetRevision: __REPO_REVISION__
+    path: clusters/__CLUSTER__/manifests/agent
+  destination: {server: https://kubernetes.default.svc, namespace: kagent}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-intel-digest
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "3"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: arc-platform
+  source:
+    repoURL: __REPO_URL__
+    targetRevision: __REPO_REVISION__
+    path: deploy/digest
+  destination: {server: https://kubernetes.default.svc, namespace: kagent}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

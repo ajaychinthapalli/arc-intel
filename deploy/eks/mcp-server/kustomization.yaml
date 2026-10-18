@@ -1,0 +1,26 @@
+# EKS overlay for the arc-intel MCP server: ECR image + CloudWatch audit lookup.
+# setup-eks.sh sets the image and log group with `kustomize edit`; edit by hand otherwise.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../mcp-server
+  - argocd-token.yaml
+images:
+  - name: ghcr.io/my-org/arc-intel-mcp
+    newName: 111122223333.dkr.ecr.us-west-2.amazonaws.com/arc-intel-mcp
+    newTag: 0.1.0
+patches:
+  - target: {kind: Deployment, name: arc-intel-mcp}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: AWS_REGION, value: us-west-2}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: EKS_AUDIT_LOG_GROUP, value: /aws/eks/arc-prod/cluster}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: AUDIT_LOOKBACK_HOURS, value: "168"}
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: {workload: system}

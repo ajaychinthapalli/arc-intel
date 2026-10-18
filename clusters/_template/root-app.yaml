@@ -1,0 +1,18 @@
+# App of apps for cluster __CLUSTER__. The only manifest applied by hand:
+#   kubectl apply -f clusters/__CLUSTER__/root-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: __CLUSTER__-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: __REPO_URL__
+    targetRevision: __REPO_REVISION__
+    path: clusters/__CLUSTER__/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

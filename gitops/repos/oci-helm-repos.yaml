@@ -1,0 +1,24 @@
+# Public OCI Helm registries used by the apps. Argo CD needs them declared with enableOCI.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-arc-charts
+  namespace: argocd
+  labels: {argocd.argoproj.io/secret-type: repository}
+stringData:
+  type: helm
+  name: arc-charts
+  url: ghcr.io/actions/actions-runner-controller-charts
+  enableOCI: "true"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-kagent-charts
+  namespace: argocd
+  labels: {argocd.argoproj.io/secret-type: repository}
+stringData:
+  type: helm
+  name: kagent-charts
+  url: ghcr.io/kagent-dev/kagent/helm
+  enableOCI: "true"

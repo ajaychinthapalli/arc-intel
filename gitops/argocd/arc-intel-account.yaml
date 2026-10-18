@@ -1,0 +1,22 @@
+# Read-only Argo CD account for arc-intel. Merge these keys into your existing argocd-cm and
+# argocd-rbac-cm (they are shown as patches, not full ConfigMaps). Then:
+#   argocd account generate-token --account arc-intel
+# store the token in AWS Secrets Manager as arc/argocd-token ({"token": "..."});
+# deploy/eks/mcp-server/argocd-token.yaml syncs it into arc-intel. The account can only *get* Applications: no sync, no edit, no exec.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  accounts.arc-intel: apiKey
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  policy.csv: |
+    p, role:arc-intel-readonly, applications, get, */*, allow
+    g, arc-intel, role:arc-intel-readonly

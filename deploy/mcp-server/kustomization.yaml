@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: arc-intel
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - deployment.yaml
+configMapGenerator:
+  - name: arc-intel-policy
+    files: [policy.yaml]
+    options:
+      disableNameSuffixHash: false   # policy edits roll the deployment

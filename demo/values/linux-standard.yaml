@@ -1,0 +1,27 @@
+# Compliant scale set — expected posture: healthy
+# helm install linux-standard oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
+#   -n arc-runners --version 0.13.0 -f demo/values/linux-standard.yaml
+githubConfigUrl: https://github.com/my-org          # change to your org
+githubConfigSecret: arc-github-app                   # pre-created GitHub App secret
+runnerGroup: platform
+minRunners: 0
+maxRunners: 20
+controllerServiceAccount:
+  namespace: arc-systems
+  name: arc-gha-rs-controller
+labels:                    # required by ARC-013 (supported by recent chart versions)
+  owner: platform
+  cost-center: cc-1042
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.328.0   # pin a digest too in production
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests: {cpu: "1", memory: 2Gi}
+          limits: {cpu: "2", memory: 4Gi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001

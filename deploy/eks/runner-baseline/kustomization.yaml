@@ -1,0 +1,7 @@
+# Platform-owned baseline for runner namespaces: GitHub App secret (from AWS Secrets
+# Manager via External Secrets) and egress NetworkPolicy. Deployed by Argo CD app arc-runner-baseline.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - network-policy.yaml
+  - github-app-secret.yaml

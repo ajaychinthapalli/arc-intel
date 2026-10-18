@@ -1,0 +1,4 @@
+# Owned by: platform. Bigger pool for monorepo builds.
+minRunners: 1
+maxRunners: 30
+labels: {owner: platform, cost-center: cc-1042}

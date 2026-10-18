@@ -1,0 +1,23 @@
+# App of apps: the only thing applied by hand (`kubectl apply -f gitops/bootstrap/`).
+# Everything else (projects, platform apps, runner scale sets) is reconciled from Git.
+# Replace repoURL with your fork of this repository.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-platform-root
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/my-org/arc-intel.git
+    targetRevision: main
+    path: gitops
+    directory:
+      recurse: true
+      exclude: "{bootstrap/*,argocd/*}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

@@ -1,0 +1,12 @@
+# Layer on top of a scale-set values file on EKS so runners land only on the tainted
+# arc-runners node group, away from platform workloads:
+#   helm upgrade --install linux-standard ... -f demo/values/linux-standard.yaml -f demo/values/eks-runner-placement.yaml
+template:
+  spec:
+    nodeSelector:
+      workload: arc-runners
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: arc-runners
+        effect: NoSchedule

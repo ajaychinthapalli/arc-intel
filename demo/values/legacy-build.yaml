@@ -1,0 +1,20 @@
+# Deliberately non-compliant scale set — expected posture: non_compliant
+# helm install legacy-build oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
+#   -n arc-runners-legacy --create-namespace --version 0.13.0 -f demo/values/legacy-build.yaml
+githubConfigUrl: https://github.com/my-org
+githubConfigSecret:
+  github_token: "ghp_replace_me"        # ARC-001: PAT instead of GitHub App
+minRunners: 8                           # ARC-004: too many idle runners
+# maxRunners omitted                    # ARC-003: unbounded
+containerMode:
+  type: dind                            # ARC-008: privileged dind sidecar (namespace not exempt)
+controllerServiceAccount:
+  namespace: arc-systems
+  name: arc-gha-rs-controller
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest    # ARC-005 + ARC-010/011 (no resources, no securityContext)
+        command: ["/home/runner/run.sh"]
+# No NetworkPolicy in this namespace (ARC-014), no owner labels (ARC-013), Default group (ARC-012).

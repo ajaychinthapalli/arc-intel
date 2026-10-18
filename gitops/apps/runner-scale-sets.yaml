@@ -1,0 +1,47 @@
+# One Argo CD Application per directory under runner-scale-sets/ (except _common).
+# Adding a runner pool = a PR adding runner-scale-sets/<name>/values.yaml.
+#
+# selfHeal is on: Argo reverts manual edits within its reconcile loop. arc-intel still
+# reports those edits on EKS (out_of_band_writes / self_healed from the audit log), so a
+# "fixed" drift doesn't erase who made it.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: arc-runner-scale-sets
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/my-org/arc-intel.git
+        revision: main
+        directories:
+          - path: runner-scale-sets/*
+          - path: runner-scale-sets/_common
+            exclude: true
+  template:
+    metadata:
+      name: "arc-runners-{{.path.basename}}"
+      annotations: {argocd.argoproj.io/sync-wave: "3"}
+      finalizers: [resources-finalizer.argocd.argoproj.io]
+    spec:
+      project: arc-runners
+      sources:
+        - repoURL: ghcr.io/actions/actions-runner-controller-charts
+          chart: gha-runner-scale-set
+          targetRevision: 0.13.0   # keep equal to the controller (ARC-015)
+          helm:
+            releaseName: "{{.path.basename}}"
+            valueFiles:
+              - $values/runner-scale-sets/_common/eks.yaml
+              - "$values/{{.path.path}}/values.yaml"
+        - repoURL: https://github.com/my-org/arc-intel.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: arc-runners
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, ServerSideApply=true]
