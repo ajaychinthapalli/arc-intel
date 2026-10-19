@@ -13,3 +13,10 @@ grafana:
 alertmanager:
   enabled: true
   # Route alerts to on-call: set alertmanager.config receivers (Slack, PagerDuty, Opsgenie).
+# EKS: the control plane is AWS-managed and not scrapeable. Disabling these also stops the chart
+# from creating Services in kube-system, which the arc-platform project does not allow.
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeEtcd: {enabled: false}
+kubeProxy: {enabled: false}
+coreDns: {enabled: false}
