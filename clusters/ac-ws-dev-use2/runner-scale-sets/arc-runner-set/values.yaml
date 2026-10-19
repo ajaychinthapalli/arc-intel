@@ -28,3 +28,7 @@ template:
       - effect: NoSchedule
         key: workload
         value: ci-runner
+# Explicit because Argo CD renders without cluster access (the chart's controller lookup returns nothing).
+controllerServiceAccount:
+  namespace: arc-systems
+  name: arc-gha-rs-controller
