@@ -1,25 +1,32 @@
-# Values of Helm release 'arc-runner-set' exported from the cluster (helm get values).
+# Values of Helm release 'arc-runner-set', managed by Argo CD.
 # Change runner pools through PRs to this file; Argo CD applies them.
 githubConfigSecret: arc-github-app
 githubConfigUrl: https://github.com/ajaychinthapalli/arc-runners-sandbox
 maxRunners: 3
 minRunners: 0
+# ARC-013: ownership labels for chargeback and incident routing
+labels:
+  owner: ajaychinthapalli
+  cost-center: sandbox
 template:
   metadata:
     annotations:
       karpenter.sh/do-not-disrupt: "true"
   spec:
     containers:
-      - command:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0   # ARC-005: pinned (add @sha256:<digest> for immutability)
+        command:
           - /home/runner/run.sh
-        image: ghcr.io/actions/actions-runner:latest
-        name: runner
         resources:
-          limits:
-            memory: 2Gi
           requests:
             cpu: 500m
             memory: 1Gi
+          limits:
+            cpu: "1"          # ARC-010
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false   # ARC-011
     nodeSelector:
       capacity: ondemand
       workload: ci-runner
