@@ -30,3 +30,14 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: ARGOCD_INSECURE, value: "true"}
+  # CloudWatch Application Signals: never inject auto-instrumentation into arc-intel (Python; the
+  # injected init container also violates the namespace's restricted Pod Security standard).
+  - target: {kind: Deployment, name: arc-intel-mcp}
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations
+        value:
+          instrumentation.opentelemetry.io/inject-java: "false"
+          instrumentation.opentelemetry.io/inject-python: "false"
+          instrumentation.opentelemetry.io/inject-nodejs: "false"
+          instrumentation.opentelemetry.io/inject-dotnet: "false"
