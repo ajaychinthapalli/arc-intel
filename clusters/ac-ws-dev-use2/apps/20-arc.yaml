@@ -25,6 +25,7 @@ spec:
       ref: values
   destination: {server: https://kubernetes.default.svc, namespace: arc-systems}
   syncPolicy:
+    automated: {prune: false, selfHeal: true}
     syncOptions: [ServerSideApply=true]
 ---
 # One Application per clusters/ac-ws-dev-use2/runner-scale-sets/<release-name>/values.yaml.
@@ -64,4 +65,5 @@ spec:
           ref: values
       destination: {server: https://kubernetes.default.svc, namespace: arc-runners}
       syncPolicy:
+        automated: {prune: false, selfHeal: true}
         syncOptions: [ServerSideApply=true]
